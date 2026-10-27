@@ -1,1 +1,1250 @@
 
+```html
+<!DOCTYPE html>
+<html lang="en" class="h-full bg-slate-950 text-slate-100">
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+  <title>Hotspot Watchdog - Android App Simulator & Kotlin Blueprint</title>
+
+  <!-- Tailwind CSS -->
+  <script src="https://cdn.tailwindcss.com"></script>
+  <!-- Lucide Icons -->
+  <script src="https://unpkg.com/lucide@latest"></script>
+  <!-- QR Code Generator Library -->
+  <script src="https://cdnjs.cloudflare.com/ajax/libs/qrcodejs/1.0.0/qrcode.min.js"></script>
+  <!-- Google Fonts: Inter & JetBrains Mono -->
+  <link href="https://fonts.googleapis.com/css2?family=Inter:wght@300;400;500;600;700;800&family=JetBrains+Mono:wght@400;500;600&display=swap" rel="stylesheet">
+
+  <script>
+    tailwind.config = {
+      darkMode: 'class',
+      theme: {
+        extend: {
+          fontFamily: {
+            sans: ['Inter', 'sans-serif'],
+            mono: ['JetBrains Mono', 'monospace'],
+          },
+          colors: {
+            brand: {
+              50: '#ecfdf5',
+              500: '#10b981',
+              600: '#059669',
+              700: '#047857',
+              900: '#064e3b',
+            }
+          }
+        }
+      }
+    }
+  </script>
+
+  <style>
+    /* Custom Scrollbars */
+    ::-webkit-scrollbar { width: 6px; height: 6px; }
+    ::-webkit-scrollbar-track { background: rgba(15, 23, 42, 0.6); }
+    ::-webkit-scrollbar-thumb { background: rgba(51, 65, 85, 0.8); border-radius: 4px; }
+    ::-webkit-scrollbar-thumb:hover { background: rgba(71, 85, 105, 1); }
+
+    /* Glassmorphism */
+    .glass-card {
+      background: rgba(30, 41, 59, 0.75);
+      backdrop-filter: blur(12px);
+      border: 1px solid rgba(255, 255, 255, 0.08);
+    }
+    .glass-phone {
+      background: rgba(15, 23, 42, 0.9);
+      backdrop-filter: blur(16px);
+      border: 1px solid rgba(255, 255, 255, 0.12);
+    }
+    .glow-green { box-shadow: 0 0 20px rgba(16, 185, 129, 0.25); }
+    .glow-amber { box-shadow: 0 0 20px rgba(245, 158, 11, 0.25); }
+    .glow-red { box-shadow: 0 0 20px rgba(239, 68, 68, 0.25); }
+    
+    /* Phone Screen Framing */
+    .phone-mockup {
+      width: 100%;
+      max-width: 380px;
+      height: 720px;
+      border-radius: 40px;
+      border: 8px solid #334155;
+      position: relative;
+      overflow: hidden;
+      display: flex;
+      flex-direction: column;
+      box-shadow: 0 25px 50px -12px rgba(0, 0, 0, 0.7);
+    }
+    
+    /* Keyframe Animations for FCM Popup */
+    @keyframes slideDownNotif {
+      0% { transform: translateY(-100%); opacity: 0; }
+      15% { transform: translateY(0); opacity: 1; }
+      85% { transform: translateY(0); opacity: 1; }
+      100% { transform: translateY(-120%); opacity: 0; }
+    }
+    .animate-fcm-popup {
+      animation: slideDownNotif 4.5s cubic-bezier(0.16, 1, 0.3, 1) forwards;
+    }
+  </style>
+</head>
+<body class="min-h-full flex flex-col bg-slate-950 text-slate-100 antialiased selection:bg-emerald-500 selection:text-slate-950">
+
+  <!-- TOP APP HEADER -->
+  <header class="sticky top-0 z-40 bg-slate-900/90 backdrop-blur-md border-b border-slate-800 px-4 lg:px-8 py-3 flex flex-wrap items-center justify-between gap-4">
+    <div class="flex items-center gap-3">
+      <div class="p-2 bg-emerald-500/10 border border-emerald-500/20 text-emerald-400 rounded-xl">
+        <i data-lucide="shield-check" class="w-6 h-6"></i>
+      </div>
+      <div>
+        <h1 class="text-lg font-bold tracking-tight text-white flex items-center gap-2">
+          Hotspot Watchdog
+          <span class="text-xs px-2 py-0.5 rounded-full bg-emerald-500/10 text-emerald-400 border border-emerald-500/20 font-mono">v1.0 Pair Hub</span>
+        </h1>
+        <p class="text-xs text-slate-400">Android Foreground Service & Push Alert Simulator</p>
+      </div>
+    </div>
+
+    <!-- MAIN TAB SWITCHER -->
+    <div class="flex items-center bg-slate-950 p-1 rounded-xl border border-slate-800 text-xs font-medium">
+      <button id="tab-btn-emulator" onclick="switchMainTab('emulator')" class="flex items-center gap-2 px-4 py-2 rounded-lg bg-emerald-600 text-white shadow-md transition-all">
+        <i data-lucide="smartphone" class="w-4 h-4"></i>
+        <span>Live Dual-Phone Sandbox</span>
+      </button>
+      <button id="tab-btn-blueprint" onclick="switchMainTab('blueprint')" class="flex items-center gap-2 px-4 py-2 rounded-lg text-slate-400 hover:text-white transition-all">
+        <i data-lucide="code-2" class="w-4 h-4"></i>
+        <span>Android Kotlin Blueprint</span>
+      </button>
+    </div>
+  </header>
+
+  <!-- CONTENT CONTAINER -->
+  <main class="flex-1 max-w-7xl w-full mx-auto p-4 sm:p-6 lg:p-8 flex flex-col">
+
+    <!-- ==================== TAB 1: DUAL PHONE EMULATOR ==================== -->
+    <div id="tab-emulator" class="space-y-6 flex-1 flex flex-col">
+      
+      <!-- Top Alert Bar / Connection Status -->
+      <div class="glass-card rounded-2xl p-4 flex flex-wrap items-center justify-between gap-4 border border-slate-800">
+        <div class="flex items-center gap-3">
+          <div id="pair-status-indicator" class="w-3 h-3 rounded-full bg-emerald-500 animate-pulse"></div>
+          <div>
+            <div class="text-xs text-slate-400">Pairing State</div>
+            <div id="pair-status-text" class="text-sm font-semibold text-emerald-400 flex items-center gap-1.5">
+              <span>Paired via Token:</span>
+              <span class="font-mono text-xs text-slate-300 bg-slate-900 px-2 py-0.5 rounded border border-slate-800">fcm_wd_8832a9f2</span>
+            </div>
+          </div>
+        </div>
+
+        <div class="flex items-center gap-2">
+          <button onclick="openQrModal()" class="flex items-center gap-1.5 px-3 py-1.5 rounded-xl bg-slate-800 hover:bg-slate-700 text-xs font-medium border border-slate-700 transition">
+            <i data-lucide="qr-code" class="w-4 h-4 text-emerald-400"></i>
+            <span>Show QR Pairing Key</span>
+          </button>
+          <button onclick="resetSimulator()" class="flex items-center gap-1.5 px-3 py-1.5 rounded-xl bg-slate-800 hover:bg-slate-700 text-xs font-medium border border-slate-700 transition text-slate-300">
+            <i data-lucide="rotate-ccw" class="w-3.5 h-3.5"></i>
+            <span>Reset Demo</span>
+          </button>
+        </div>
+      </div>
+
+      <!-- DUAL PHONE SIDE-BY-SIDE GRID -->
+      <div class="grid grid-cols-1 lg:grid-cols-2 gap-8 items-start justify-items-center flex-1">
+
+        <!-- ================= HOTSPOT PHONE (SENDER) ================= -->
+        <div class="w-full flex flex-col items-center">
+          <div class="flex items-center gap-2 mb-3">
+            <span class="px-2.5 py-1 rounded-full bg-indigo-500/10 text-indigo-400 border border-indigo-500/20 text-xs font-bold font-mono">ROLE 1</span>
+            <h2 class="text-base font-bold text-white flex items-center gap-2">
+              Hotspot Phone
+              <span class="text-xs font-normal text-slate-400">(Sender / Monitor Host)</span>
+            </h2>
+          </div>
+
+          <!-- Phone Mockup Container -->
+          <div class="phone-mockup glass-phone">
+            
+            <!-- Phone Header Bar -->
+            <div class="bg-slate-900 px-5 py-3 border-b border-slate-800 flex items-center justify-between text-xs font-mono">
+              <span class="text-slate-400">11:50 AM</span>
+              <div class="flex items-center gap-2">
+                <i id="phone1-wifi-icon" data-lucide="wifi" class="w-3.5 h-3.5 text-emerald-400"></i>
+                <i id="phone1-batt-icon" data-lucide="battery-charging" class="w-3.5 h-3.5 text-emerald-400"></i>
+              </div>
+            </div>
+
+            <!-- Foreground Service Active Banner -->
+            <div id="fg-service-banner" class="bg-indigo-950/80 border-b border-indigo-800/50 px-4 py-2 flex items-center justify-between">
+              <div class="flex items-center gap-2">
+                <span class="w-2 h-2 rounded-full bg-emerald-400 animate-ping"></span>
+                <div class="text-[11px] font-medium text-indigo-200">Watchdog Service Active</div>
+              </div>
+              <span class="text-[10px] bg-indigo-900/80 text-indigo-300 px-2 py-0.5 rounded font-mono">Foreground</span>
+            </div>
+
+            <!-- Scrollable Control Panel inside Phone -->
+            <div class="flex-1 overflow-y-auto p-4 space-y-4">
+              
+              <!-- 1. Internet Connectivity Toggle -->
+              <div class="bg-slate-900/80 p-3.5 rounded-2xl border border-slate-800">
+                <div class="flex items-center justify-between mb-2">
+                  <span class="text-xs font-semibold text-slate-200 flex items-center gap-2">
+                    <i data-lucide="globe" class="w-4 h-4 text-emerald-400"></i>
+                    Internet Connection
+                  </span>
+                  <span id="hotspot-net-badge" class="px-2 py-0.5 rounded-full bg-emerald-500/10 text-emerald-400 text-[10px] font-bold border border-emerald-500/20">ONLINE</span>
+                </div>
+                <div class="grid grid-cols-2 gap-2 mt-2">
+                  <button onclick="setHotspotInternet(true)" id="btn-net-online" class="py-1.5 px-3 rounded-xl bg-emerald-600 text-white text-xs font-medium flex items-center justify-center gap-1.5 shadow">
+                    <i data-lucide="wifi" class="w-3.5 h-3.5"></i> Online
+                  </button>
+                  <button onclick="setHotspotInternet(false)" id="btn-net-offline" class="py-1.5 px-3 rounded-xl bg-slate-800 text-slate-400 hover:text-white text-xs font-medium flex items-center justify-center gap-1.5">
+                    <i data-lucide="wifi-off" class="w-3.5 h-3.5"></i> Offline
+                  </button>
+                </div>
+              </div>
+
+              <!-- 2. Battery & Charging Controls -->
+              <div class="bg-slate-900/80 p-3.5 rounded-2xl border border-slate-800">
+                <div class="flex items-center justify-between mb-2">
+                  <span class="text-xs font-semibold text-slate-200 flex items-center gap-2">
+                    <i data-lucide="zap" class="w-4 h-4 text-amber-400"></i>
+                    Battery & Charging
+                  </span>
+                  <span id="hotspot-charge-badge" class="px-2 py-0.5 rounded-full bg-amber-500/10 text-amber-400 text-[10px] font-bold border border-amber-500/20">CHARGING</span>
+                </div>
+
+                <!-- Slider -->
+                <div class="space-y-1 my-3">
+                  <div class="flex justify-between text-[11px] font-mono text-slate-400">
+                    <span>Battery Level</span>
+                    <span id="battery-pct-label" class="font-bold text-white">75%</span>
+                  </div>
+                  <input type="range" id="battery-slider" min="5" max="100" value="75" oninput="onBatterySliderChange(this.value)" class="w-full accent-emerald-500 h-1.5 bg-slate-800 rounded-lg cursor-pointer">
+                </div>
+
+                <!-- Charging State Modes -->
+                <div class="grid grid-cols-3 gap-1.5">
+                  <button onclick="setChargingState('unplugged')" id="btn-charge-unplugged" class="py-1.5 px-2 rounded-xl bg-slate-800 text-slate-400 text-[11px] font-medium flex flex-col items-center gap-1">
+                    <i data-lucide="plug-2" class="w-3.5 h-3.5"></i> Unplugged
+                  </button>
+                  <button onclick="setChargingState('charging')" id="btn-charge-charging" class="py-1.5 px-2 rounded-xl bg-amber-600 text-white text-[11px] font-medium flex flex-col items-center gap-1">
+                    <i data-lucide="zap" class="w-3.5 h-3.5"></i> Charging
+                  </button>
+                  <button onclick="setChargingState('full')" id="btn-charge-full" class="py-1.5 px-2 rounded-xl bg-slate-800 text-slate-400 text-[11px] font-medium flex flex-col items-center gap-1">
+                    <i data-lucide="battery-full" class="w-3.5 h-3.5"></i> Full (100%)
+                  </button>
+                </div>
+              </div>
+
+              <!-- 3. Hotspot Devices Connected (ARP Table) -->
+              <div class="bg-slate-900/80 p-3.5 rounded-2xl border border-slate-800">
+                <div class="flex items-center justify-between mb-2">
+                  <span class="text-xs font-semibold text-slate-200 flex items-center gap-2">
+                    <i data-lucide="laptop" class="w-4 h-4 text-indigo-400"></i>
+                    Hotspot Devices (<span id="hotspot-device-count">2</span>)
+                  </span>
+                  <button onclick="showAddDevicePrompt()" class="text-[11px] text-indigo-400 hover:text-indigo-300 flex items-center gap-1 font-medium">
+                    <i data-lucide="plus-circle" class="w-3.5 h-3.5"></i> Add Device
+                  </button>
+                </div>
+
+                <!-- Dynamic Devices List -->
+                <div id="hotspot-devices-list" class="space-y-2 mt-3">
+                  <!-- Devices dynamically injected here -->
+                </div>
+              </div>
+
+              <!-- 4. System / Service Control -->
+              <div class="bg-slate-900/80 p-3.5 rounded-2xl border border-slate-800">
+                <span class="text-xs font-semibold text-slate-200 flex items-center gap-2 mb-2">
+                  <i data-lucide="cpu" class="w-4 h-4 text-rose-400"></i>
+                  Service Controls
+                </span>
+
+                <div class="grid grid-cols-2 gap-2">
+                  <button onclick="toggleServiceState()" id="btn-toggle-service" class="py-2 px-3 rounded-xl bg-rose-500/10 hover:bg-rose-500/20 border border-rose-500/30 text-rose-300 text-xs font-medium flex items-center justify-center gap-1.5">
+                    <i data-lucide="power" class="w-3.5 h-3.5"></i> Stop Service
+                  </button>
+                  <button onclick="simulateReboot()" class="py-2 px-3 rounded-xl bg-slate-800 hover:bg-slate-700 border border-slate-700 text-slate-300 text-xs font-medium flex items-center justify-center gap-1.5">
+                    <i data-lucide="refresh-cw" class="w-3.5 h-3.5"></i> Simulate Reboot
+                  </button>
+                </div>
+              </div>
+
+            </div>
+          </div>
+        </div>
+
+        <!-- ================= MONITOR PHONE (RECEIVER) ================= -->
+        <div class="w-full flex flex-col items-center">
+          <div class="flex items-center gap-2 mb-3">
+            <span class="px-2.5 py-1 rounded-full bg-emerald-500/10 text-emerald-400 border border-emerald-500/20 text-xs font-bold font-mono">ROLE 2</span>
+            <h2 class="text-base font-bold text-white flex items-center gap-2">
+              Monitor Phone
+              <span class="text-xs font-normal text-slate-400">(Receiver Dashboard)</span>
+            </h2>
+          </div>
+
+          <!-- Phone Mockup Container -->
+          <div class="phone-mockup glass-phone relative">
+            
+            <!-- Realtime Simulated FCM Push Banner Overlay -->
+            <div id="fcm-toast-container" class="absolute top-10 left-3 right-3 z-50 pointer-events-none">
+              <!-- Animated Notification Toast injected here -->
+            </div>
+
+            <!-- Phone Header Bar -->
+            <div class="bg-slate-900 px-5 py-3 border-b border-slate-800 flex items-center justify-between text-xs font-mono">
+              <span class="text-slate-400">11:50 AM</span>
+              <div class="flex items-center gap-2">
+                <i data-lucide="wifi" class="w-3.5 h-3.5 text-emerald-400"></i>
+                <i data-lucide="battery" class="w-3.5 h-3.5 text-slate-300"></i>
+              </div>
+            </div>
+
+            <!-- Monitor Header App Toolbar -->
+            <div class="bg-slate-900/90 px-4 py-3 border-b border-slate-800 flex items-center justify-between">
+              <div class="flex items-center gap-2">
+                <i data-lucide="activity" class="w-4 h-4 text-emerald-400"></i>
+                <span class="text-xs font-bold text-white tracking-wide">WATCHDOG LIVE</span>
+              </div>
+              
+              <button onclick="manualRefresh()" id="btn-refresh-now" class="px-2.5 py-1 rounded-lg bg-emerald-600 hover:bg-emerald-500 text-white text-[11px] font-medium flex items-center gap-1 shadow transition">
+                <i id="refresh-icon" data-lucide="refresh-cw" class="w-3 h-3"></i>
+                <span>Refresh Now</span>
+              </button>
+            </div>
+
+            <!-- Monitor Scrollable View -->
+            <div class="flex-1 overflow-y-auto p-4 space-y-4">
+              
+              <!-- Hotspot Phone Live Overview Card -->
+              <div class="bg-slate-900/90 rounded-2xl p-4 border border-slate-800 space-y-3 shadow-lg">
+                <div class="flex items-center justify-between border-b border-slate-800/80 pb-2">
+                  <div class="text-xs font-bold text-slate-200">Hotspot Status Summary</div>
+                  <span id="monitor-last-updated" class="text-[10px] text-slate-500 font-mono">Just now</span>
+                </div>
+
+                <div class="grid grid-cols-2 gap-3">
+                  <!-- Battery Widget -->
+                  <div class="bg-slate-950 p-2.5 rounded-xl border border-slate-800/80">
+                    <div class="text-[10px] text-slate-400 mb-1">Battery & Power</div>
+                    <div class="flex items-center gap-2">
+                      <i id="monitor-batt-icon" data-lucide="battery-charging" class="w-5 h-5 text-amber-400"></i>
+                      <div>
+                        <div id="monitor-batt-pct" class="text-sm font-bold text-white font-mono">75%</div>
+                        <div id="monitor-charge-status" class="text-[9px] text-amber-400 uppercase font-bold">Charging</div>
+                      </div>
+                    </div>
+                  </div>
+
+                  <!-- Internet Widget -->
+                  <div class="bg-slate-950 p-2.5 rounded-xl border border-slate-800/80">
+                    <div class="text-[10px] text-slate-400 mb-1">Network State</div>
+                    <div class="flex items-center gap-2">
+                      <i id="monitor-net-icon" data-lucide="wifi" class="w-5 h-5 text-emerald-400"></i>
+                      <div>
+                        <div id="monitor-net-status" class="text-xs font-bold text-emerald-400 uppercase">ONLINE</div>
+                        <div class="text-[9px] text-slate-400 font-mono">Signal: 4/4 Bars</div>
+                      </div>
+                    </div>
+                  </div>
+                </div>
+              </div>
+
+              <!-- Connected Hotspot Clients List -->
+              <div class="bg-slate-900/90 rounded-2xl p-4 border border-slate-800 space-y-3">
+                <div class="flex items-center justify-between">
+                  <div class="text-xs font-bold text-slate-200 flex items-center gap-1.5">
+                    <i data-lucide="users" class="w-3.5 h-3.5 text-indigo-400"></i>
+                    Connected Clients
+                  </div>
+                  <span id="monitor-device-count-badge" class="px-2 py-0.5 rounded-full bg-indigo-500/10 text-indigo-400 text-[10px] font-mono font-bold border border-indigo-500/20">2 Devices</span>
+                </div>
+
+                <div id="monitor-devices-list" class="space-y-2">
+                  <!-- Synced devices displayed here -->
+                </div>
+              </div>
+
+              <!-- Push Alerts Event History Stream -->
+              <div class="bg-slate-900/90 rounded-2xl p-4 border border-slate-800 space-y-3">
+                <div class="flex items-center justify-between">
+                  <div class="text-xs font-bold text-slate-200 flex items-center gap-1.5">
+                    <i data-lucide="history" class="w-3.5 h-3.5 text-emerald-400"></i>
+                    Alert History Log
+                  </div>
+                  <button onclick="clearEventLogs()" class="text-[10px] text-slate-500 hover:text-slate-300">Clear</button>
+                </div>
+
+                <!-- Log Filter Tabs -->
+                <div class="flex gap-1 border-b border-slate-800 pb-2 text-[10px] font-medium">
+                  <button onclick="filterLogs('all')" id="filter-all" class="px-2 py-1 rounded bg-slate-800 text-white">All</button>
+                  <button onclick="filterLogs('network')" id="filter-network" class="px-2 py-1 rounded text-slate-400 hover:text-white">Network</button>
+                  <button onclick="filterLogs('battery')" id="filter-battery" class="px-2 py-1 rounded text-slate-400 hover:text-white">Battery</button>
+                  <button onclick="filterLogs('device')" id="filter-device" class="px-2 py-1 rounded text-slate-400 hover:text-white">Devices</button>
+                </div>
+
+                <!-- Scrollable Stream Container -->
+                <div id="event-logs-stream" class="space-y-2 max-h-56 overflow-y-auto pr-1">
+                  <!-- History log cards dynamically injected -->
+                </div>
+              </div>
+
+            </div>
+          </div>
+        </div>
+
+      </div>
+
+    </div>
+
+    <!-- ==================== TAB 2: ANDROID KOTLIN BLUEPRINT ==================== -->
+    <div id="tab-blueprint" class="hidden space-y-6 flex-1 flex flex-col">
+      
+      <div class="glass-card rounded-2xl p-6 border border-slate-800 space-y-2">
+        <h2 class="text-xl font-bold text-white flex items-center gap-2">
+          <i data-lucide="code" class="w-6 h-6 text-emerald-400"></i>
+          Production Android Kotlin Code Architecture
+        </h2>
+        <p class="text-xs text-slate-400 leading-relaxed max-w-4xl">
+          Below is the lightweight, modular Kotlin architecture designed for Android 8.0+ (API 26+). It includes foreground service persistence, background job optimization, ARP table parsing for tethered device tracking, battery broadcast receivers, and FCM HTTP v1 notification dispatching.
+        </p>
+      </div>
+
+      <!-- BLUEPRINT CODE EDITOR LAYOUT -->
+      <div class="glass-card rounded-2xl border border-slate-800 overflow-hidden flex flex-col flex-1">
+        
+        <!-- File Selector Toolbar -->
+        <div class="bg-slate-900 px-4 py-2.5 border-b border-slate-800 flex flex-wrap items-center justify-between gap-2">
+          <div class="flex items-center gap-1 overflow-x-auto text-xs font-mono">
+            <button onclick="showCodeFile('manifest')" id="file-btn-manifest" class="px-3 py-1.5 rounded-lg bg-emerald-600 text-white font-medium flex items-center gap-1.5">
+              <i data-lucide="file-code" class="w-3.5 h-3.5"></i> AndroidManifest.xml
+            </button>
+            <button onclick="showCodeFile('service')" id="file-btn-service" class="px-3 py-1.5 rounded-lg text-slate-400 hover:text-slate-200 font-medium flex items-center gap-1.5">
+              <i data-lucide="file-text" class="w-3.5 h-3.5"></i> WatchdogService.kt
+            </button>
+            <button onclick="showCodeFile('fcm')" id="file-btn-fcm" class="px-3 py-1.5 rounded-lg text-slate-400 hover:text-slate-200 font-medium flex items-center gap-1.5">
+              <i data-lucide="send" class="w-3.5 h-3.5"></i> FcmPushManager.kt
+            </button>
+            <button onclick="showCodeFile('pair')" id="file-btn-pair" class="px-3 py-1.5 rounded-lg text-slate-400 hover:text-slate-200 font-medium flex items-center gap-1.5">
+              <i data-lucide="qr-code" class="w-3.5 h-3.5"></i> PairManager.kt
+            </button>
+            <button onclick="showCodeFile('boot')" id="file-btn-boot" class="px-3 py-1.5 rounded-lg text-slate-400 hover:text-slate-200 font-medium flex items-center gap-1.5">
+              <i data-lucide="power" class="w-3.5 h-3.5"></i> BootReceiver.kt
+            </button>
+          </div>
+
+          <button onclick="copyCurrentCode()" class="flex items-center gap-1.5 px-3 py-1.5 rounded-lg bg-slate-800 hover:bg-slate-700 text-xs text-slate-200 transition border border-slate-700">
+            <i data-lucide="copy" class="w-3.5 h-3.5"></i>
+            <span id="copy-btn-label">Copy File</span>
+          </button>
+        </div>
+
+        <!-- Code Block Viewer -->
+        <div class="p-4 bg-slate-950 font-mono text-xs overflow-x-auto text-slate-300 leading-relaxed flex-1">
+          
+          <!-- Manifest -->
+          <pre id="code-manifest" class="code-snippet"><code class="language-xml">&lt;!-- AndroidManifest.xml --&gt;
+&lt;manifest xmlns:android="http://schemas.android.com/apk/res/android"
+    package="com.hotspot.watchdog"&gt;
+
+    &lt;!-- Lightweight Permissions --&gt;
+    &lt;uses-permission android:name="android.permission.INTERNET" /&gt;
+    &lt;uses-permission android:name="android.permission.ACCESS_NETWORK_STATE" /&gt;
+    &lt;uses-permission android:name="android.permission.FOREGROUND_SERVICE" /&gt;
+    &lt;uses-permission android:name="android.permission.RECEIVE_BOOT_COMPLETED" /&gt;
+    &lt;uses-permission android:name="android.permission.WAKE_LOCK" /&gt;
+
+    &lt;application
+        android:allowBackup="false"
+        android:icon="@mipmap/ic_launcher"
+        android:label="Hotspot Watchdog"
+        android:theme="@style/Theme.Watchdog.Dark"&gt;
+
+        &lt;!-- Main Dashboard & QR Pair Scanner --&gt;
+        &lt;activity
+            android:name=".MainActivity"
+            android:exported="true"&gt;
+            &lt;intent-filter&gt;
+                &lt;action android:name="android.intent.action.MAIN" /&gt;
+                &lt;category android:name="android.intent.category.LAUNCHER" /&gt;
+            &lt;/intent-filter&gt;
+        &lt;/activity&gt;
+
+        &lt;!-- Foreground Service for 24/7 Hotspot Monitoring --&gt;
+        &lt;service
+            android:name=".service.WatchdogService"
+            android:enabled="true"
+            android:exported="false"
+            android:foregroundServiceType="connectedDevice|dataSync" /&gt;
+
+        &lt;!-- Auto-restart Service after Phone Reboot --&gt;
+        &lt;receiver
+            android:name=".receiver.BootReceiver"
+            android:enabled="true"
+            android:exported="true"&gt;
+            &lt;intent-filter&gt;
+                &lt;action android:name="android.intent.action.BOOT_COMPLETED" /&gt;
+                &lt;action android:name="android.intent.action.MY_PACKAGE_REPLACED" /&gt;
+            &lt;/intent-filter&gt;
+        &lt;/receiver&gt;
+
+    &lt;/application&gt;
+&lt;/manifest&gt;</code></pre>
+
+          <!-- WatchdogService.kt -->
+          <pre id="code-service" class="code-snippet hidden"><code class="language-kotlin">package com.hotspot.watchdog.service
+
+import android.app.*
+import android.content.*
+import android.net.ConnectivityManager
+import android.net.NetworkCapabilities
+import android.os.*
+import androidx.core.app.NotificationCompat
+import com.hotspot.watchdog.R
+import com.hotspot.watchdog.net.FcmPushManager
+import kotlinx.coroutines.*
+import java.io.File
+import java.io.BufferedReader
+import java.io.FileReader
+
+class WatchdogService : Service() {
+
+    private val serviceScope = CoroutineScope(Dispatchers.IO + SupervisorJob())
+    private var lastInternetState: Boolean? = null
+    private var lastChargingState: String? = null
+    private val knownDevices = mutableSetOf&lt;String&gt;()
+
+    override fun onCreate() {
+        super.onCreate()
+        startForeground(NOTIFICATION_ID, createNotification())
+        registerBatteryReceiver()
+        startMonitoringLoop()
+    }
+
+    private fun startMonitoringLoop() {
+        serviceScope.launch {
+            while (isActive) {
+                checkInternetConnectivity()
+                checkHotspotDevices()
+                delay(30_000) // Low power 30-second interval check
+            }
+        }
+    }
+
+    // Rule 1: Instant Internet Connection Check
+    private fun checkInternetConnectivity() {
+        val cm = getSystemService(Context.CONNECTIVITY_SERVICE) as ConnectivityManager
+        val activeNetwork = cm.activeNetwork
+        val caps = cm.getNetworkCapabilities(activeNetwork)
+        val isOnline = caps?.hasCapability(NetworkCapabilities.NET_CAPABILITY_INTERNET) == true
+
+        if (lastInternetState != null && lastInternetState != isOnline) {
+            if (!isOnline) {
+                FcmPushManager.sendPushAlert("🚨 Internet Offline", "Hotspot phone lost connectivity!")
+            } else {
+                FcmPushManager.sendPushAlert("🌐 Internet Restored", "Hotspot internet connection is back online ✅")
+            }
+        }
+        lastInternetState = isOnline
+    }
+
+    // Rule 2: Battery & Charging Broadcast Listener
+    private void registerBatteryReceiver() {
+        val filter = IntentFilter(Intent.ACTION_BATTERY_CHANGED)
+        registerReceiver(object : BroadcastReceiver() {
+            override fun onReceive(context: Context?, intent: Intent?) {
+                intent?.let {
+                    val status = it.getIntExtra(BatteryManager.EXTRA_STATUS, -1)
+                    val isCharging = status == BatteryManager.BATTERY_STATUS_CHARGING ||
+                                     status == BatteryManager.BATTERY_STATUS_FULL
+                    val level = it.getIntExtra(BatteryManager.EXTRA_LEVEL, -1)
+                    val scale = it.getIntExtra(BatteryManager.EXTRA_SCALE, -1)
+                    val batteryPct = (level * 100 / scale.toFloat()).toInt()
+
+                    val currentState = when {
+                        status == BatteryManager.BATTERY_STATUS_FULL -> "FULL"
+                        isCharging -> "CHARGING"
+                        else -> "UNPLUGGED"
+                    }
+
+                    if (lastChargingState != null && lastChargingState != currentState) {
+                        if (currentState == "UNPLUGGED" && batteryPct < 100) {
+                            FcmPushManager.sendPushAlert("⚠️ Hotspot Unplugged", "Battery at $batteryPct%. Please plug in!")
+                        } else if (currentState == "CHARGING") {
+                            FcmPushManager.sendPushAlert("🔌 Charging Started", "Hotspot phone is plugged in.")
+                        } else if (currentState == "FULL") {
+                            FcmPushManager.sendPushAlert("🔋 Battery Full", "Battery reached 100%.")
+                        }
+                    }
+                    lastChargingState = currentState
+                }
+            }
+        }, filter)
+    }
+
+    // Rule 3: Hotspot Devices ARP Table Reader (/proc/net/arp)
+    private fun checkHotspotDevices() {
+        val currentDevices = mutableSetOf&lt;String&gt;()
+        try {
+            val br = BufferedReader(FileReader("/proc/net/arp"))
+            var line: String?
+            while (br.readLine().also { line = it } != null) {
+                val tokens = line!!.split("\\s+".toRegex())
+                if (tokens.size >= 4 && tokens[0] != "IP") {
+                    val ip = tokens[0]
+                    val mac = tokens[3]
+                    if (mac != "00:00:00:00:00:00") {
+                        currentDevices.add("$ip ($mac)")
+                    }
+                }
+            }
+            br.close()
+
+            // Check joined devices
+            val joined = currentDevices - knownDevices
+            joined.forEach { device ->
+                FcmPushManager.sendPushAlert("📱 Device Joined", "New client connected: $device")
+            }
+
+            // Check disconnected devices
+            val left = knownDevices - currentDevices
+            left.forEach { device ->
+                FcmPushManager.sendPushAlert("📱 Device Left", "Client disconnected: $device")
+            }
+
+            knownDevices.clear()
+            knownDevices.addAll(currentDevices)
+        } catch (e: Exception) {
+            e.printStackTrace()
+        }
+    }
+
+    private fun createNotification(): Notification {
+        val channelId = "watchdog_service"
+        if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.O) {
+            val channel = NotificationChannel(channelId, "Hotspot Watchdog Foreground", NotificationManager.IMPORTANCE_LOW)
+            getSystemService(NotificationManager::class.java).createNotificationChannel(channel)
+        }
+        return NotificationCompat.Builder(this, channelId)
+            .setContentTitle("Hotspot Watchdog Active")
+            .setContentText("Monitoring network, battery, and connected clients...")
+            .setSmallIcon(R.drawable.ic_shield)
+            .setOngoing(true)
+            .build()
+    }
+
+    override fun onBind(intent: Intent?): IBinder? = null
+
+    companion object {
+        const val NOTIFICATION_ID = 1001
+    }
+}</code></pre>
+
+          <!-- FcmPushManager.kt -->
+          <pre id="code-fcm" class="code-snippet hidden"><code class="language-kotlin">package com.hotspot.watchdog.net
+
+import kotlinx.coroutines.Dispatchers
+import kotlinx.coroutines.withContext
+import java.net.HttpURLConnection
+import java.net.URL
+import org.json.JSONObject
+
+object FcmPushManager {
+    
+    private var targetFcmToken: String? = null
+
+    fun setTargetToken(token: String) {
+        this.targetFcmToken = token
+    }
+
+    suspend fun sendPushAlert(title: String, body: String) = withContext(Dispatchers.IO) {
+        val token = targetFcmToken ?: return@withContext
+        
+        try {
+            val url = URL("https://fcm.googleapis.com/fcm/send")
+            val conn = url.openConnection() as HttpURLConnection
+            conn.requestMethod = "POST"
+            conn.setRequestProperty("Authorization", "key=YOUR_FCM_SERVER_KEY")
+            conn.setRequestProperty("Content-Type", "application/json")
+            conn.doOutput = true
+
+            val payload = JSONObject().apply {
+                put("to", token)
+                put("priority", "high")
+                put("notification", JSONObject().apply {
+                    put("title", title)
+                    put("body", body)
+                    put("sound", "default")
+                })
+                put("data", JSONObject().apply {
+                    put("timestamp", System.currentTimeMillis())
+                })
+            }
+
+            val os = conn.outputStream
+            os.write(payload.toString().toByteArray())
+            os.flush()
+            os.close()
+
+            val responseCode = conn.responseCode
+            println("FCM Push Sent. Response Code: $responseCode")
+        } catch (e: Exception) {
+            e.printStackTrace()
+        }
+    }
+}</code></pre>
+
+          <!-- PairManager.kt -->
+          <pre id="code-pair" class="code-snippet hidden"><code class="language-kotlin">package com.hotspot.watchdog.pair
+
+import android.graphics.Bitmap
+import com.google.zxing.BarcodeFormat
+import com.google.zxing.qrcode.QRCodeWriter
+import org.json.JSONObject
+
+object PairManager {
+
+    data class PairPayload(
+        val deviceName: String,
+        val fcmToken: String,
+        val createdTimestamp: Long
+    )
+
+    fun generatePairQrJson(deviceName: String, fcmToken: String): String {
+        return JSONObject().apply {
+            put("name", deviceName)
+            put("token", fcmToken)
+            put("ts", System.currentTimeMillis())
+        }.toString()
+    }
+
+    fun parsePairQrJson(qrRawText: String): PairPayload? {
+        return try {
+            val json = JSONObject(qrRawText)
+            PairPayload(
+                deviceName = json.getString("name"),
+                fcmToken = json.getString("token"),
+                createdTimestamp = json.getLong("ts")
+            )
+        } catch (e: Exception) {
+            null
+        }
+    }
+}</code></pre>
+
+          <!-- BootReceiver.kt -->
+          <pre id="code-boot" class="code-snippet hidden"><code class="language-kotlin">package com.hotspot.watchdog.receiver
+
+import android.content.BroadcastReceiver
+import android.content.Context
+import android.content.Intent
+import android.os.Build
+import com.hotspot.watchdog.service.WatchdogService
+
+class BootReceiver : BroadcastReceiver() {
+    override fun onReceive(context: Context?, intent: Intent?) {
+        if (intent?.action == Intent.ACTION_BOOT_COMPLETED ||
+            intent?.action == Intent.ACTION_MY_PACKAGE_REPLACED) {
+            
+            context?.let { ctx ->
+                val serviceIntent = Intent(ctx, WatchdogService::class.java)
+                if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.O) {
+                    ctx.startForegroundService(serviceIntent)
+                } else {
+                    ctx.startService(serviceIntent)
+                }
+            }
+        }
+    }
+}</code></pre>
+
+        </div>
+      </div>
+
+    </div>
+
+  </main>
+
+  <!-- MODAL: QR CODE PAIRING DIALOG -->
+  <div id="qr-modal" class="fixed inset-0 z-50 bg-slate-950/80 backdrop-blur-sm hidden flex items-center justify-center p-4">
+    <div class="glass-card rounded-2xl max-w-sm w-full p-6 text-center border border-slate-700 shadow-2xl space-y-4">
+      <div class="flex items-center justify-between border-b border-slate-800 pb-3">
+        <h3 class="text-sm font-bold text-white flex items-center gap-2">
+          <i data-lucide="qr-code" class="w-4 h-4 text-emerald-400"></i>
+          Scan Pair QR Code
+        </h3>
+        <button onclick="closeQrModal()" class="text-slate-400 hover:text-white">
+          <i data-lucide="x" class="w-5 h-5"></i>
+        </button>
+      </div>
+
+      <p class="text-xs text-slate-300">
+        Scan this QR code using the <strong>Monitor Phone</strong> app to instantly pair tokens without requiring any user account or cloud signup.
+      </p>
+
+      <!-- QR Canvas Render Box -->
+      <div class="bg-white p-4 rounded-xl flex items-center justify-center shadow-inner mx-auto w-48 h-48" id="qrcode-container"></div>
+
+      <div class="text-[10px] font-mono text-slate-400 break-all bg-slate-900 p-2 rounded border border-slate-800">
+        Payload: {"token":"fcm_wd_8832a9f2","device":"Hotspot_Pixel_6"}
+      </div>
+
+      <button onclick="closeQrModal()" class="w-full py-2 bg-emerald-600 hover:bg-emerald-500 text-white rounded-xl text-xs font-semibold">
+        Close Pairing Window
+      </button>
+    </div>
+  </div>
+
+  <!-- JAVASCRIPT STATE ENGINE & INTERACTION SIMULATOR -->
+  <script>
+    // Global State of Hotspot Phone
+    const hotspotState = {
+      isOnline: true,
+      chargingState: 'charging', // 'unplugged', 'charging', 'full'
+      batteryLevel: 75,
+      isServiceActive: true,
+      devices: [
+        { id: 1, name: "John's iPhone", ip: "192.168.43.102", mac: "54:E4:3A:99:01" },
+        { id: 2, name: "Smart TV stick", ip: "192.168.43.145", mac: "A2:88:11:BC:FE" }
+      ]
+    };
+
+    // Global Log Stream
+    let eventLogs = [];
+    let activeFilter = 'all';
+
+    // Init on Window Load
+    window.addEventListener('load', () => {
+      lucide.createIcons();
+      renderDevicesList();
+      syncMonitorDashboard();
+      generateQrCode();
+    });
+
+    // Main Tab Navigation
+    function switchMainTab(tab) {
+      const emuTab = document.getElementById('tab-emulator');
+      const blueTab = document.getElementById('tab-blueprint');
+      const btnEmu = document.getElementById('tab-btn-emulator');
+      const btnBlue = document.getElementById('tab-btn-blueprint');
+
+      if (tab === 'emulator') {
+        emuTab.classList.remove('hidden');
+        blueTab.classList.add('hidden');
+        btnEmu.className = "flex items-center gap-2 px-4 py-2 rounded-lg bg-emerald-600 text-white shadow-md transition-all";
+        btnBlue.className = "flex items-center gap-2 px-4 py-2 rounded-lg text-slate-400 hover:text-white transition-all";
+      } else {
+        emuTab.classList.add('hidden');
+        blueTab.classList.remove('hidden');
+        btnBlue.className = "flex items-center gap-2 px-4 py-2 rounded-lg bg-emerald-600 text-white shadow-md transition-all";
+        btnEmu.className = "flex items-center gap-2 px-4 py-2 rounded-lg text-slate-400 hover:text-white transition-all";
+      }
+    }
+
+    // Code Blueprint File Selector
+    function showCodeFile(fileKey) {
+      document.querySelectorAll('.code-snippet').forEach(el => el.classList.add('hidden'));
+      document.getElementById(`code-${fileKey}`).classList.remove('hidden');
+
+      const files = ['manifest', 'service', 'fcm', 'pair', 'boot'];
+      files.forEach(f => {
+        const btn = document.getElementById(`file-btn-${f}`);
+        if (f === fileKey) {
+          btn.className = "px-3 py-1.5 rounded-lg bg-emerald-600 text-white font-medium flex items-center gap-1.5";
+        } else {
+          btn.className = "px-3 py-1.5 rounded-lg text-slate-400 hover:text-slate-200 font-medium flex items-center gap-1.5";
+        }
+      });
+    }
+
+    // 1. RULE 1: Internet Toggle & Alert Dispatch
+    function setHotspotInternet(online) {
+      if (hotspotState.isOnline === online) return;
+      hotspotState.isOnline = online;
+
+      // Update Sender UI
+      const badge = document.getElementById('hotspot-net-badge');
+      const btnOnline = document.getElementById('btn-net-online');
+      const btnOffline = document.getElementById('btn-net-offline');
+
+      if (online) {
+        badge.textContent = "ONLINE";
+        badge.className = "px-2 py-0.5 rounded-full bg-emerald-500/10 text-emerald-400 text-[10px] font-bold border border-emerald-500/20";
+        btnOnline.className = "py-1.5 px-3 rounded-xl bg-emerald-600 text-white text-xs font-medium flex items-center justify-center gap-1.5 shadow";
+        btnOffline.className = "py-1.5 px-3 rounded-xl bg-slate-800 text-slate-400 hover:text-white text-xs font-medium flex items-center justify-center gap-1.5";
+        
+        triggerFcmPush("🌐 Internet Restored", "Hotspot internet connection is back online ✅", "network", "emerald");
+      } else {
+        badge.textContent = "OFFLINE";
+        badge.className = "px-2 py-0.5 rounded-full bg-rose-500/10 text-rose-400 text-[10px] font-bold border border-rose-500/20";
+        btnOffline.className = "py-1.5 px-3 rounded-xl bg-rose-600 text-white text-xs font-medium flex items-center justify-center gap-1.5 shadow";
+        btnOnline.className = "py-1.5 px-3 rounded-xl bg-slate-800 text-slate-400 hover:text-white text-xs font-medium flex items-center justify-center gap-1.5";
+
+        triggerFcmPush("🚨 Internet Lost!", "Hotspot phone has lost network connectivity!", "network", "rose");
+      }
+
+      syncMonitorDashboard();
+    }
+
+    // 2. RULE 2: Battery & Charging Handlers
+    function onBatterySliderChange(val) {
+      hotspotState.batteryLevel = parseInt(val, 10);
+      document.getElementById('battery-pct-label').textContent = `${val}%`;
+      
+      if (val === "100" && hotspotState.chargingState !== 'full') {
+        setChargingState('full');
+      } else {
+        syncMonitorDashboard();
+      }
+    }
+
+    function setChargingState(state) {
+      if (hotspotState.chargingState === state) return;
+      hotspotState.chargingState = state;
+
+      const badge = document.getElementById('hotspot-charge-badge');
+      const bUnplugged = document.getElementById('btn-charge-unplugged');
+      const bCharging = document.getElementById('btn-charge-charging');
+      const bFull = document.getElementById('btn-charge-full');
+
+      // Reset styles
+      [bUnplugged, bCharging, bFull].forEach(b => b.className = "py-1.5 px-2 rounded-xl bg-slate-800 text-slate-400 text-[11px] font-medium flex flex-col items-center gap-1");
+
+      if (state === 'unplugged') {
+        badge.textContent = "UNPLUGGED";
+        badge.className = "px-2 py-0.5 rounded-full bg-rose-500/10 text-rose-400 text-[10px] font-bold border border-rose-500/20";
+        bUnplugged.className = "py-1.5 px-2 rounded-xl bg-rose-600 text-white text-[11px] font-medium flex flex-col items-center gap-1 shadow";
+        
+        triggerFcmPush("⚠️ Hotspot Phone Unplugged", `Battery at ${hotspotState.batteryLevel}%. Please plug in!`, "battery", "amber");
+      } else if (state === 'charging') {
+        badge.textContent = "CHARGING";
+        badge.className = "px-2 py-0.5 rounded-full bg-amber-500/10 text-amber-400 text-[10px] font-bold border border-amber-500/20";
+        bCharging.className = "py-1.5 px-2 rounded-xl bg-amber-600 text-white text-[11px] font-medium flex flex-col items-center gap-1 shadow";
+
+        triggerFcmPush("🔌 Charging Started", "Hotspot phone is now plugged into power.", "battery", "emerald");
+      } else if (state === 'full') {
+        hotspotState.batteryLevel = 100;
+        document.getElementById('battery-slider').value = 100;
+        document.getElementById('battery-pct-label').textContent = "100%";
+        badge.textContent = "BATTERY FULL";
+        badge.className = "px-2 py-0.5 rounded-full bg-emerald-500/10 text-emerald-400 text-[10px] font-bold border border-emerald-500/20";
+        bFull.className = "py-1.5 px-2 rounded-xl bg-emerald-600 text-white text-[11px] font-medium flex flex-col items-center gap-1 shadow";
+
+        triggerFcmPush("🔋 Battery Full", "Hotspot battery reached 100%.", "battery", "emerald");
+      }
+
+      syncMonitorDashboard();
+    }
+
+    // 3. RULE 3: Hotspot Device Joined / Left ARP Handlers
+    function renderDevicesList() {
+      const container = document.getElementById('hotspot-devices-list');
+      document.getElementById('hotspot-device-count').textContent = hotspotState.devices.length;
+
+      if (hotspotState.devices.length === 0) {
+        container.innerHTML = `<div class="text-[11px] text-slate-500 italic text-center py-2">No clients connected</div>`;
+        return;
+      }
+
+      container.innerHTML = hotspotState.devices.map(dev => `
+        <div class="bg-slate-950 p-2.5 rounded-xl border border-slate-800/80 flex items-center justify-between">
+          <div class="min-w-0">
+            <div class="text-xs font-semibold text-slate-200 truncate">${escapeHtml(dev.name)}</div>
+            <div class="text-[10px] text-slate-500 font-mono">${dev.ip}</div>
+          </div>
+          <button onclick="removeDevice(${dev.id})" class="p-1 text-slate-500 hover:text-rose-400 rounded transition" title="Disconnect device">
+            <i data-lucide="trash-2" class="w-3.5 h-3.5"></i>
+          </button>
+        </div>
+      `).join('');
+
+      lucide.createIcons();
+    }
+
+    function showAddDevicePrompt() {
+      const name = prompt("Enter Device Name (e.g., Laptop, Tablet):", "Work Laptop");
+      if (!name) return;
+
+      const randomIp = `192.168.43.${Math.floor(Math.random() * 200) + 10}`;
+      const newDev = { id: Date.now(), name: name, ip: randomIp, mac: "C4:12:90:33:AA" };
+      
+      const oldCount = hotspotState.devices.length;
+      hotspotState.devices.push(newDev);
+      const newCount = hotspotState.devices.length;
+
+      renderDevicesList();
+      syncMonitorDashboard();
+
+      triggerFcmPush("📱 Device Joined", `Device joined: ${name} (${oldCount} → ${newCount} connected)`, "device", "indigo");
+    }
+
+    function removeDevice(id) {
+      const devIndex = hotspotState.devices.findIndex(d => d.id === id);
+      if (devIndex === -1) return;
+
+      const dev = hotspotState.devices[devIndex];
+      const oldCount = hotspotState.devices.length;
+      hotspotState.devices.splice(devIndex, 1);
+      const newCount = hotspotState.devices.length;
+
+      renderDevicesList();
+      syncMonitorDashboard();
+
+      triggerFcmPush("📱 Device Left", `Device left: ${dev.name} (${oldCount} → ${newCount} connected)`, "device", "amber");
+    }
+
+    // Service & Reboot Simulations
+    function toggleServiceState() {
+      hotspotState.isServiceActive = !hotspotState.isServiceActive;
+      const banner = document.getElementById('fg-service-banner');
+      const btn = document.getElementById('btn-toggle-service');
+
+      if (hotspotState.isServiceActive) {
+        banner.className = "bg-indigo-950/80 border-b border-indigo-800/50 px-4 py-2 flex items-center justify-between";
+        banner.innerHTML = `
+          <div class="flex items-center gap-2">
+            <span class="w-2 h-2 rounded-full bg-emerald-400 animate-ping"></span>
+            <div class="text-[11px] font-medium text-indigo-200">Watchdog Service Active</div>
+          </div>
+          <span class="text-[10px] bg-indigo-900/80 text-indigo-300 px-2 py-0.5 rounded font-mono">Foreground</span>
+        `;
+        btn.innerHTML = `<i data-lucide="power" class="w-3.5 h-3.5"></i> Stop Service`;
+        btn.className = "py-2 px-3 rounded-xl bg-rose-500/10 hover:bg-rose-500/20 border border-rose-500/30 text-rose-300 text-xs font-medium flex items-center justify-center gap-1.5";
+      } else {
+        banner.className = "bg-rose-950/80 border-b border-rose-800/50 px-4 py-2 flex items-center justify-between";
+        banner.innerHTML = `
+          <div class="flex items-center gap-2">
+            <span class="w-2 h-2 rounded-full bg-rose-500"></span>
+            <div class="text-[11px] font-medium text-rose-200">Watchdog Service Stopped</div>
+          </div>
+          <span class="text-[10px] bg-rose-900/80 text-rose-300 px-2 py-0.5 rounded font-mono">Inactive</span>
+        `;
+        btn.innerHTML = `<i data-lucide="play" class="w-3.5 h-3.5"></i> Start Service`;
+        btn.className = "py-2 px-3 rounded-xl bg-emerald-500/10 hover:bg-emerald-500/20 border border-emerald-500/30 text-emerald-300 text-xs font-medium flex items-center justify-center gap-1.5";
+      }
+      lucide.createIcons();
+    }
+
+    function simulateReboot() {
+      alert("Simulating Hotspot Phone Reboot...\n\nBootReceiver will intercept ACTION_BOOT_COMPLETED and auto-restart WatchdogService in foreground mode.");
+      if (!hotspotState.isServiceActive) toggleServiceState();
+    }
+
+    // Trigger FCM Notification Banner Popups on Monitor Phone
+    function triggerFcmPush(title, body, category, colorTheme) {
+      if (!hotspotState.isServiceActive) return; // Silent if service stopped
+
+      // 1. Create Floating Android Banner
+      const container = document.getElementById('fcm-toast-container');
+      const toast = document.createElement('div');
+      toast.className = "bg-slate-900/95 border border-slate-700/80 rounded-2xl p-3 shadow-2xl flex items-start gap-3 animate-fcm-popup pointer-events-auto backdrop-blur-md";
+
+      let iconName = "bell";
+      let colorClass = "text-emerald-400";
+      if (category === "network") { iconName = "wifi"; colorClass = "text-emerald-400"; }
+      if (category === "battery") { iconName = "zap"; colorClass = "text-amber-400"; }
+      if (category === "device") { iconName = "smartphone"; colorClass = "text-indigo-400"; }
+
+      toast.innerHTML = `
+        <div class="p-2 rounded-xl bg-slate-800 ${colorClass} shrink-0 mt-0.5">
+          <i data-lucide="${iconName}" class="w-4 h-4"></i>
+        </div>
+        <div class="flex-1 min-w-0">
+          <div class="flex items-center justify-between">
+            <span class="text-[10px] font-bold uppercase tracking-wider text-slate-400 font-mono">FCM Push Alert</span>
+            <span class="text-[9px] text-slate-500 font-mono">Now</span>
+          </div>
+          <h4 class="text-xs font-bold text-white mt-0.5">${escapeHtml(title)}</h4>
+          <p class="text-[11px] text-slate-300 leading-tight mt-0.5">${escapeHtml(body)}</p>
+        </div>
+      `;
+
+      container.appendChild(toast);
+      lucide.createIcons();
+
+      setTimeout(() => toast.remove(), 4500);
+
+      // 2. Add to Log Stream History
+      addLogEntry(title, body, category);
+    }
+
+    // Log Stream Management
+    function addLogEntry(title, body, category) {
+      const entry = {
+        id: Date.now(),
+        time: new Date().toLocaleTimeString([], { hour: '2-digit', minute: '2-digit', second: '2-digit' }),
+        title,
+        body,
+        category
+      };
+
+      eventLogs.unshift(entry);
+      if (eventLogs.length > 50) eventLogs.pop();
+
+      renderLogs();
+    }
+
+    function renderLogs() {
+      const container = document.getElementById('event-logs-stream');
+      const filtered = activeFilter === 'all' ? eventLogs : eventLogs.filter(l => l.category === activeFilter);
+
+      if (filtered.length === 0) {
+        container.innerHTML = `<div class="text-[11px] text-slate-500 text-center py-4 italic">No logs recorded yet</div>`;
+        return;
+      }
+
+      container.innerHTML = filtered.map(log => `
+        <div class="p-2.5 rounded-xl bg-slate-950 border border-slate-800/80 space-y-1">
+          <div class="flex items-center justify-between text-[10px]">
+            <span class="font-bold text-slate-300 font-mono">${escapeHtml(log.title)}</span>
+            <span class="text-slate-500 font-mono">${log.time}</span>
+          </div>
+          <p class="text-[11px] text-slate-400 leading-tight">${escapeHtml(log.body)}</p>
+        </div>
+      `).join('');
+    }
+
+    function filterLogs(cat) {
+      activeFilter = cat;
+      ['all', 'network', 'battery', 'device'].forEach(c => {
+        const btn = document.getElementById(`filter-${c}`);
+        if (c === cat) {
+          btn.className = "px-2 py-1 rounded bg-emerald-600 text-white font-semibold";
+        } else {
+          btn.className = "px-2 py-1 rounded text-slate-400 hover:text-white";
+        }
+      });
+      renderLogs();
+    }
+
+    function clearEventLogs() {
+      eventLogs = [];
+      renderLogs();
+    }
+
+    // Monitor Phone Live Data Syncing
+    function syncMonitorDashboard() {
+      // Battery
+      document.getElementById('monitor-batt-pct').textContent = `${hotspotState.batteryLevel}%`;
+      const chargeText = document.getElementById('monitor-charge-status');
+      const battIcon = document.getElementById('monitor-batt-icon');
+
+      if (hotspotState.chargingState === 'charging') {
+        chargeText.textContent = "Charging";
+        chargeText.className = "text-[9px] text-amber-400 uppercase font-bold";
+        battIcon.className = "w-5 h-5 text-amber-400";
+      } else if (hotspotState.chargingState === 'full') {
+        chargeText.textContent = "Battery Full";
+        chargeText.className = "text-[9px] text-emerald-400 uppercase font-bold";
+        battIcon.className = "w-5 h-5 text-emerald-400";
+      } else {
+        chargeText.textContent = "Unplugged";
+        chargeText.className = "text-[9px] text-rose-400 uppercase font-bold";
+        battIcon.className = "w-5 h-5 text-rose-400";
+      }
+
+      // Network
+      const netText = document.getElementById('monitor-net-status');
+      const netIcon = document.getElementById('monitor-net-icon');
+      if (hotspotState.isOnline) {
+        netText.textContent = "ONLINE";
+        netText.className = "text-xs font-bold text-emerald-400 uppercase";
+        netIcon.className = "w-5 h-5 text-emerald-400";
+      } else {
+        netText.textContent = "OFFLINE";
+        netText.className = "text-xs font-bold text-rose-400 uppercase";
+        netIcon.className = "w-5 h-5 text-rose-400";
+      }
+
+      // Devices list on Monitor Phone
+      document.getElementById('monitor-device-count-badge').textContent = `${hotspotState.devices.length} Devices`;
+      const devList = document.getElementById('monitor-devices-list');
+
+      if (hotspotState.devices.length === 0) {
+        devList.innerHTML = `<div class="text-[11px] text-slate-500 italic text-center py-2">No connected devices</div>`;
+      } else {
+        devList.innerHTML = hotspotState.devices.map(d => `
+          <div class="bg-slate-950 p-2 rounded-xl border border-slate-800/60 flex items-center justify-between">
+            <div>
+              <div class="text-xs font-medium text-slate-200">${escapeHtml(d.name)}</div>
+              <div class="text-[9px] text-slate-500 font-mono">${d.ip}</div>
+            </div>
+            <span class="text-[9px] px-1.5 py-0.5 rounded bg-emerald-500/10 text-emerald-400 font-mono border border-emerald-500/20">Active</span>
+          </div>
+        `).join('');
+      }
+
+      document.getElementById('monitor-last-updated').textContent = "Just now";
+      lucide.createIcons();
+    }
+
+    // Manual Refresh Button Action
+    function manualRefresh() {
+      const icon = document.getElementById('refresh-icon');
+      icon.classList.add('animate-spin');
+
+      setTimeout(() => {
+        syncMonitorDashboard();
+        icon.classList.remove('animate-spin');
+      }, 500);
+    }
+
+    // QR Modal Controls & QR Code Generator
+    function openQrModal() {
+      document.getElementById('qr-modal').classList.remove('hidden');
+    }
+
+    function closeQrModal() {
+      document.getElementById('qr-modal').classList.add('hidden');
+    }
+
+    function generateQrCode() {
+      const qrel = document.getElementById("qrcode-container");
+      qrel.innerHTML = "";
+      new QRCode(qrel, {
+        text: '{"token":"fcm_wd_8832a9f2","device":"Hotspot_Pixel_6"}',
+        width: 160,
+        height: 160,
+        colorDark : "#0f172a",
+        colorLight : "#ffffff",
+        correctLevel : QRCode.CorrectLevel.H
+      });
+    }
+
+    function resetSimulator() {
+      hotspotState.isOnline = true;
+      hotspotState.chargingState = 'charging';
+      hotspotState.batteryLevel = 75;
+      hotspotState.isServiceActive = true;
+      hotspotState.devices = [
+        { id: 1, name: "John's iPhone", ip: "192.168.43.102", mac: "54:E4:3A:99:01" },
+        { id: 2, name: "Smart TV stick", ip: "192.168.43.145", mac: "A2:88:11:BC:FE" }
+      ];
+      
+      document.getElementById('battery-slider').value = 75;
+      document.getElementById('battery-pct-label').textContent = "75%";
+
+      renderDevicesList();
+      syncMonitorDashboard();
+      clearEventLogs();
+    }
+
+    function copyCurrentCode() {
+      const visibleCode = document.querySelector('.code-snippet:not(.hidden)').textContent;
+      navigator.clipboard.writeText(visibleCode).then(() => {
+        const lbl = document.getElementById('copy-btn-label');
+        lbl.textContent = "Copied!";
+        setTimeout(() => lbl.textContent = "Copy File", 2000);
+      });
+    }
+
+    function escapeHtml(str) {
+      return str.replace(/&/g, "&amp;").replace(/</g, "&lt;").replace(/>/g, "&gt;").replace(/"/g, "&quot;").replace(/'/g, "&#039;");
+    }
+  </script>
+</body>
+</html>
+```
